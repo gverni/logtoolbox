@@ -1,10 +1,37 @@
 // LOG TYPES definition (used mainly for automatic timestamp processing)
 const TYPEKERNEL = 0
 
+//TIMESTAMP PROCESSING
+
+const TS_FIXEDWIDTH = 0 	// User needs to provide number of columns 
+const TS_DELIMITED = 1  	// User needs to provide delimiter character 
+const TS_REGEX = 2 			// USER needs to provide regexp for timestamp. Assumption is that timestamp is the first in the row 
+
 // Const definition
 const fs = require('fs')
 
-/* Function preProcessLog( log )
+function extractTimestamp(logLine, ts_type , ts_arg ) {
+	// TODO: Error handling 
+	var logLineProcessed = [] 
+	
+	//Default parameters 
+	ts_type = (typeof ts_type !== 'undefined') ?  ts_type : 0;
+	ts_arg = (typeof ts_arg !== 'undefined') ?  ts_arg : 0;
+	
+	if ( ts_type === TS_FIXEDWIDTH ) { 
+		logLineProcessed = [logLine.slice(0,ts_arg), logLine.slice(ts_arg)] 
+	} else if ( ts_type === TS_DELIMITED ) {
+		// BUG: Add handling of \r (one or more). Using "\r?" doesn't work. 
+		logLineProcessed = logLine.split(new RegExp("(.*?)" + ts_arg + "(.*)")) 
+	} else if ( ts_type === TS_REGEX ) {
+		// BUG: This doesn't work at all 
+		logLineProcessed = logLine.split(new RegExp(ts_arg + "(.*)")) 
+	}
+	return logLineProcessed
+}
+
+/* Function preProcessLog( log , [ timestamp type ],  [timestamp type] ) 
+
   This function return an array of object parsing an array of log lines. The
   object returned is defined as:
 
@@ -21,7 +48,8 @@ const fs = require('fs')
 function preProcessLog (logLines) {
   var logProcessed = []
   logLines.forEach(function (element, index) {
-    logProcessed.push({lineNum: index, timestamp: '', log: element})
+	var logMessageTimestamp = 
+    logProcessed.push({lineNum: index, timestamp: "", log: element})
   })
 
   return logProcessed
@@ -103,10 +131,11 @@ function openFileStream () {
   })
 }
 
-/* test function  */
+/* test functions */
 
-function executeTest () {
-  var logFiles = ['samples\\files_py.txt', 'samples\\files_pyc.txt']
+function testComparison () {
+  ///var logFiles = ['samples\\files_py.txt', 'samples\\files_pyc.txt']
+  var logFiles = ['C:\\_ce\\customers\\freebox\\_issues\\recompile_freebox_kernel\\without_weston\\upstart_not_working.log_notimestamp', 'C:\\_ce\\customers\\freebox\\_issues\\recompile_freebox_kernel\\without_weston\\upstart_working.log_notimestamp']
   var logs = [] // Array of all logs read
   var logsCompared = []
 
@@ -122,7 +151,20 @@ function executeTest () {
   console.log('Output in file ' + logFiles[0] + '_compared')
 }
 
+function testTimestampParsing() {
+  
+  var logLine = "[2010-01-01 00:00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+
+  console.log(extractTimestamp(logLine)) 								// "", "[2010-01-01 00:00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+  console.log(extractTimestamp(logLine, TS_FIXEDWIDTH, 10 ))			// "[2010-01-0", "1 00:00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+  console.log(extractTimestamp(logLine, TS_DELIMITED, ":" ))			// "[2010-01-01 00", "00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+  console.log(extractTimestamp(logLine, TS_REGEX, "\[(.*?)\]" ))		// "2010-01-01 00:00:00", " [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+	
+}
+/* End test functions */ 
+
 /* MAIN */
 
-executeTest()
+//executeTest()
+testTimestampParsing()
 
