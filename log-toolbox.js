@@ -10,24 +10,45 @@ const TS_REGEX = 2 			// USER needs to provide regexp for timestamp. Assumption 
 // Const definition
 const fs = require('fs')
 
+/* Function extractTimestamp( log message, timestamp type, timestamp argument)
+  
+  Return an array of two string: 
+    - Timestamp: parsed timestamp or empty string in case of error 
+	- log message: log message  
+
+*/ 
+
 function extractTimestamp(logLine, ts_type , ts_arg ) {
-	// TODO: Error handling 
-	var logLineProcessed = [] 
-	
-	//Default parameters 
-	ts_type = (typeof ts_type !== 'undefined') ?  ts_type : 0;
-	ts_arg = (typeof ts_arg !== 'undefined') ?  ts_arg : 0;
-	
-	if ( ts_type === TS_FIXEDWIDTH ) { 
-		logLineProcessed = [logLine.slice(0,ts_arg), logLine.slice(ts_arg)] 
-	} else if ( ts_type === TS_DELIMITED ) {
-		// BUG: Add handling of \r (one or more). Using "\r?" doesn't work. 
-		logLineProcessed = logLine.split(new RegExp("(.*?)" + ts_arg + "(.*)")) 
-	} else if ( ts_type === TS_REGEX ) {
-		// BUG: This doesn't work at all 
-		logLineProcessed = logLine.split(new RegExp(ts_arg + "(.*)")) 
-	}
-	return logLineProcessed
+
+  var logLineProcessed = [] 
+
+  try {
+    if ( ts_type === TS_FIXEDWIDTH ) { 
+    logLineProcessed = [logLine.slice(0,ts_arg), logLine.slice(ts_arg)] 
+    } else if ( ts_type === TS_DELIMITED ) {
+      if (ts_arg.indexOf('*') > -1) { 
+        //User specified a wildcard character 
+	    ts_arg = (ts_arg.replace('\[', '\\[')).replace('\]', '\\]').replace('\)', '\\)').replace('\(','\\(').replace('*', '(.*?)')	// Transform argument adding escapes '\' and converting '*' to '(.*?)'
+	    var re = new RegExp(ts_arg + "(.*)")	// Added '(.*?)' to catch everything else in the string 
+	    logLineProcessed = [ re.exec(logLine)[1], re.exec(logLine)[2] ] 
+      } else {
+        posDelimiter = logLine.indexOf(ts_arg)
+        if (posDelimiter > 0) {
+          logLineProcessed = [ logLine.slice(0,posDelimiter), logLine.slice(posDelimiter + 1) ]
+        } else {
+          logLineProcessed = [ '', logLine]
+        }
+      }
+    } else if ( ts_type === TS_REGEX ) {
+	  var re = new RegExp(ts_arg.replace('\\', '\\\\') + "(.*)")
+	  console.log(re)
+	  logLineProcessed = [ re.exec(logLine)[1], re.exec(logLine)[2] ] 
+    }
+    return logLineProcessed
+  } catch (err) {
+	  console.log("extractTimestamp: Error " + err)
+	  return ["", logLine] 
+  }
 }
 
 /* Function preProcessLog( log , [ timestamp type ],  [timestamp type] ) 
@@ -45,8 +66,14 @@ function extractTimestamp(logLine, ts_type , ts_arg ) {
 
 */
 
-function preProcessLog (logLines) {
+function preProcessLog (logLines, ts_type, ts_arg) {
+  
+  // Defaulting timestamp parameters (or upgrade to node v6+) 
+  ts_type = (typeof ts_type !== 'undefined') ?  ts_type : 0;
+  ts_arg = (typeof ts_arg !== 'undefined') ?  ts_arg : 0;
+  
   var logProcessed = []
+  
   logLines.forEach(function (element, index) {
 	var logMessageTimestamp = 
     logProcessed.push({lineNum: index, timestamp: "", log: element})
@@ -151,20 +178,26 @@ function testComparison () {
   console.log('Output in file ' + logFiles[0] + '_compared')
 }
 
-function testTimestampParsing() {
+function testTimestampParsing () {
   
   var logLine = "[2010-01-01 00:00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
 
+  console.log("Default:")
   console.log(extractTimestamp(logLine)) 								// "", "[2010-01-01 00:00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+  console.log("Fixed at 10 chars:")
   console.log(extractTimestamp(logLine, TS_FIXEDWIDTH, 10 ))			// "[2010-01-0", "1 00:00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+  console.log("Delimited by ':':")
   console.log(extractTimestamp(logLine, TS_DELIMITED, ":" ))			// "[2010-01-01 00", "00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
-  console.log(extractTimestamp(logLine, TS_REGEX, "\[(.*?)\]" ))		// "2010-01-01 00:00:00", " [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
-	
+  console.log("Delimited with wildcard by '[*]':")
+  console.log(extractTimestamp(logLine, TS_DELIMITED, "[*]" ))			// "[2010-01-01 00", "00:00] [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+  console.log("RegExp:")
+  console.log(extractTimestamp(logLine, TS_REGEX, "\\[(.*?)\\]" ))		// "2010-01-01 00:00:00", " [ERROR] upst[597]: fbxdev: >>  [dev] coldboot: unknown subsystem 'msm-bus-type' for '/devices/mas-cnoc-a2noc'"
+
 }
 /* End test functions */ 
 
 /* MAIN */
 
-//executeTest()
-testTimestampParsing()
+//testComparison()
+//testTimestampParsing()
 
