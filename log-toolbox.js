@@ -10,6 +10,11 @@ const TS_REGEX = 2 			// USER needs to provide regexp for timestamp. Assumption 
 // Const definition
 const fs = require('fs')
 
+// Global vars definition 
+
+var logFiles = [] 		// Array with the log files to process 
+var args = {} 		// Object to hold command line arguments 
+
 /* Function extractTimestamp( log message, timestamp type, timestamp argument)
   
   Return an array of two string: 
@@ -158,11 +163,57 @@ function openFileStream () {
   })
 }
 
+/* function processArguments 
+
+  Function to process arguments: 
+  
+  ts: Timestamp type
+  ts_arg: Timestamp argument: 
+
+*/ 
+
+function processArguments() {
+	
+	var validArgs = true
+	
+	// Process arguments
+	process.argv.forEach( function (arg, index) {	
+		if (index >= 2) { //Skip the first two arguments 
+			if ( arg.indexOf("=") > -1 ) {
+				[ key, value ] = arg.split("=")
+				args[key] = value
+			} else { 
+				// It's a file name 
+				console.log("detected file " + arg)
+				logFiles.push(arg)
+			}
+		} 
+	})
+	
+	// Validate arguments
+	if ( logFiles.length < 2 ) {
+		console.log("Error: Provide at least two files to compare")
+		validArgs = false 
+	}
+	
+	if ( args.hasOwnProperty("ts") && !args.hasOwnProperty("ts_arg") ) {
+		console.log("Error: provide an argument for timestamp")
+		validArgs = false 
+	}
+	
+	if (!validArgs) {
+		console.log("Usage: node log-toolbox.js [ ts=(fixedwidth, delimited, regex)  ts_arg=(width, delimiter(s) or wildcard expression, regular expression) log log [log] ")
+		return -1 
+	} 
+	
+	return 0 
+}
+
 /* test functions */
 
 function testComparison () {
   ///var logFiles = ['samples\\files_py.txt', 'samples\\files_pyc.txt']
-  var logFiles = ['C:\\_ce\\customers\\freebox\\_issues\\recompile_freebox_kernel\\without_weston\\upstart_not_working.log_notimestamp', 'C:\\_ce\\customers\\freebox\\_issues\\recompile_freebox_kernel\\without_weston\\upstart_working.log_notimestamp']
+  logFiles = ['C:\\_ce\\customers\\freebox\\_issues\\recompile_freebox_kernel\\without_weston\\upstart_not_working.log_notimestamp', 'C:\\_ce\\customers\\freebox\\_issues\\recompile_freebox_kernel\\without_weston\\upstart_working.log_notimestamp']
   var logs = [] // Array of all logs read
   var logsCompared = []
 
@@ -200,4 +251,4 @@ function testTimestampParsing () {
 
 //testComparison()
 //testTimestampParsing()
-
+console.log(processArguments())
